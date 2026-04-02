@@ -126,6 +126,15 @@ services:
 
 ---
 
+## Built by
+
+**Poornima Ramakrishnan**
+
+📧 [poornima2489@gmail.com](mailto:poornima2489@gmail.com)  
+🐙 [github.com/poornimaramakrishnan](https://github.com/poornimaramakrishnan)
+
+---
+
 ## License
 
 MIT — free to use, modify, and distribute.
