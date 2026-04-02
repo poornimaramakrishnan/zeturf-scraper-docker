@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    image: ghcr.io/poornimaramakrishnan/zeturf-scraper:latest
+    command: serve --db /data/races.duckdb --host 0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  scraper:
+    image: ghcr.io/poornimaramakrishnan/zeturf-scraper:latest
+    command: scrape --from 2016-01-01 --to 2026-12-31 --db /data/races.duckdb --concurrent 5
+    volumes:
+      - ./data:/data
+    profiles: [scrape]
