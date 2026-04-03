@@ -6,11 +6,13 @@
 <title>ZeTurf SQL Playground — 32,000+ Horse Races</title>
 <meta name="description" content="Interactive SQL playground with 1 year of French horse racing data. Query 32,000+ races, 200k results, 400k odds — all in your browser.">
 
-<!-- DuckDB WASM -->
-<script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-blocking.js"></script>
-
-<!-- CodeMirror 6 -->
-<script src="https://cdn.jsdelivr.net/npm/@codemirror/lang-sql@6.5.4/dist/index.cjs" type="module"></script>
+<!-- DuckDB WASM (ESM via CDN) -->
+<script type="module">
+  // Re-export duckdb to window so non-module code can access it
+  import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm';
+  window._duckdb = duckdb;
+  window.dispatchEvent(new Event('duckdb-ready'));
+</script>
 
 <style>
   :root {
@@ -1114,39 +1116,56 @@ async function init() {
   try {
     setLoading("Loading DuckDB WebAssembly engine…");
 
-    // Initialize DuckDB-WASM
-    const JSDELIVR_BUNDLES = {
+    // Wait for the ESM module to expose itself on window._duckdb
+    const duckdb = await new Promise((resolve, reject) => {
+      if (window._duckdb) { resolve(window._duckdb); return; }
+      const timeout = setTimeout(() => reject(new Error('DuckDB ESM module timed out after 15s')), 15000);
+      window.addEventListener('duckdb-ready', () => {
+        clearTimeout(timeout);
+        resolve(window._duckdb);
+      }, { once: true });
+    });
+
+    // Use the jsdelivr CDN bundles for worker + wasm
+    const CDN = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/';
+    const BUNDLES = {
       mvp: {
-        mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-mvp.wasm',
-        mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-mvp.worker.js',
+        mainModule: CDN + 'duckdb-mvp.wasm',
+        mainWorker: CDN + 'duckdb-browser-mvp.worker.js',
       },
       eh: {
-        mainModule: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-eh.wasm',
-        mainWorker: 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-eh.worker.js',
+        mainModule: CDN + 'duckdb-eh.wasm',
+        mainWorker: CDN + 'duckdb-browser-eh.worker.js',
       },
     };
 
-    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-    const worker = new Worker(bundle.mainWorker);
+    const bundle = await duckdb.selectBundle(BUNDLES);
+    const workerUrl = URL.createObjectURL(
+      new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+    );
+    const worker = new Worker(workerUrl);
     const logger = new duckdb.ConsoleLogger();
     db = new duckdb.AsyncDuckDB(logger, worker);
-    await db.instantiate(bundle.mainModule);
+    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    URL.revokeObjectURL(workerUrl);
 
     conn = await db.connect();
+    // Enable httpfs for remote parquet loading
+    await conn.query("INSTALL httpfs; LOAD httpfs;");
 
     // Determine base URL for parquet files
     const baseURL = getDataBaseURL();
 
     // Load Parquet files into tables
     const tables = [
-      { name: 'races', file: 'races.parquet' },
-      { name: 'arrivee', file: 'arrivee.parquet' },
-      { name: 'cotes', file: 'cotes.parquet' },
+      { name: 'races',    file: 'races.parquet' },
+      { name: 'arrivee',  file: 'arrivee.parquet' },
+      { name: 'cotes',    file: 'cotes.parquet' },
       { name: 'partants', file: 'partants.parquet' },
     ];
 
     for (const t of tables) {
-      setLoading(`Loading ${t.name}…`);
+      setLoading(`Loading ${t.name} from data store…`);
       const url = `${baseURL}${t.file}`;
       await conn.query(`CREATE TABLE ${t.name} AS SELECT * FROM read_parquet('${url}')`);
     }
@@ -1172,18 +1191,20 @@ async function init() {
     });
 
   } catch (err) {
-    setLoading("Error: " + err.message);
+    setLoading("❌ " + err.message);
     setStatus('error', '❌ Error', err.message);
+    document.getElementById('loadingOverlay').querySelector('h2').textContent = '⚠️ Failed to Load';
     console.error(err);
   }
 }
 
 function getDataBaseURL() {
-  // If running on GitHub Pages, load from the data/ folder of the same repo
+  // GitHub Pages: files are in /data/ relative to the repo root
   if (location.hostname.includes('github.io')) {
-    return location.href.replace(/\/[^/]*$/, '/data/').replace(/\/playground\.html\//, '/');
+    const base = location.href.replace(/\/playground\.html.*$/, '');
+    return base + '/data/';
   }
-  // Local development — use raw GitHub URL
+  // Local / fallback: use raw GitHub URL
   return 'https://raw.githubusercontent.com/poornimaramakrishnan/zeturf-scraper-docker/main/data/';
 }
 
