@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZeTurf Scraper — French Horse Racing Data</title>
+<meta name="description" content="Production-grade scraper for ZeTurf.fr French horse racing results. Explore 32,000+ races with an in-browser SQL playground.">
+<style>
+  :root { --navy: #1B3A6B; --gold: #C9A84C; --bg: #f5f7fa; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+  .card { background: white; border-radius: 16px; box-shadow: 0 8px 40px rgba(0,0,0,.1); max-width: 640px; width: 100%; overflow: hidden; }
+  .hero { background: linear-gradient(135deg, #0f2444, var(--navy)); color: white; padding: 3rem 2.5rem; text-align: center; }
+  .hero .emoji { font-size: 4rem; margin-bottom: 1rem; display: block; }
+  .hero h1 { font-size: 2rem; margin-bottom: 0.5rem; letter-spacing: -0.5px; }
+  .hero p { font-size: 1rem; opacity: 0.8; line-height: 1.6; }
+  .stats { display: flex; justify-content: center; gap: 1.5rem; margin-top: 1.5rem; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat .num { font-size: 1.5rem; font-weight: 800; color: var(--gold); }
+  .stat .label { font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; }
+  .body { padding: 2rem 2.5rem; }
+  .cta { display: block; width: 100%; padding: 1rem; background: var(--gold); color: #0f2444; text-align: center; text-decoration: none; border-radius: 10px; font-size: 1.1rem; font-weight: 700; transition: all 0.2s; margin-bottom: 1rem; }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,.4); }
+  .cta-secondary { display: block; width: 100%; padding: 0.8rem; background: transparent; color: var(--navy); text-align: center; text-decoration: none; border-radius: 10px; font-size: 0.95rem; font-weight: 600; border: 2px solid var(--navy); transition: all 0.2s; }
+  .cta-secondary:hover { background: var(--navy); color: white; }
+  .features { margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  .feat { font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+  .feat .icon { font-size: 1.1rem; }
+  .footer { margin-top: 2rem; text-align: center; font-size: 0.8rem; color: #999; }
+  .footer a { color: var(--navy); text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="hero">
+    <span class="emoji">🏇</span>
+    <h1>ZeTurf Scraper</h1>
+    <p>Production-grade French horse racing data pipeline.<br>Scrape, store & analyze results from ZeTurf.fr.</p>
+    <div class="stats">
+      <div class="stat"><div class="num">32,110</div><div class="label">Races</div></div>
+      <div class="stat"><div class="num">200K+</div><div class="label">Results</div></div>
+      <div class="stat"><div class="num">408K+</div><div class="label">Odds</div></div>
+      <div class="stat"><div class="num">417</div><div class="label">Venues</div></div>
+    </div>
+  </div>
+  <div class="body">
+    <a href="playground.html" class="cta">🎮 Launch SQL Playground</a>
+    <a href="https://github.com/poornimaramakrishnan/zeturf-scraper-docker" class="cta-secondary" target="_blank">📦 View on GitHub</a>
+    <div class="features">
+      <div class="feat"><span class="icon">🧠</span> DuckDB-WASM in browser</div>
+      <div class="feat"><span class="icon">📚</span> 25+ built-in queries</div>
+      <div class="feat"><span class="icon">⬇️</span> CSV export</div>
+      <div class="feat"><span class="icon">🐳</span> Docker ready</div>
+      <div class="feat"><span class="icon">📊</span> Web dashboard</div>
+      <div class="feat"><span class="icon">🏟️</span> 417 hippodromes</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Built by <a href="mailto:poornima2489@gmail.com">Poornima Ramakrishnan</a> · Data from <a href="https://www.zeturf.fr" target="_blank">ZeTurf.fr</a>
+</div>
+
+</body>
+</html>

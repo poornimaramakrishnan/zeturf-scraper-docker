@@ -42,6 +42,22 @@ docker compose up dashboard
 
 ---
 
+## 🎮 SQL Playground — Try It Live!
+
+> **[▶ Launch SQL Playground](https://poornimaramakrishnan.github.io/zeturf-scraper-docker/playground.html)** — Query 32,000+ races directly in your browser!
+
+A fully interactive SQL environment powered by **DuckDB-WASM** with **1 year of pre-loaded data** (Apr 2025 → Mar 2026):
+
+- 🐴 **32,110 races** · 200,604 results · 408,047 odds · 193,884 starters
+- 🏟️ **417 hippodromes** across France and international
+- 📚 **25+ built-in queries** — jockey win rates, favourite analysis, betting payouts, speed rankings, draw bias, and more
+- ⬇️ **Export to CSV** with one click
+- 🧠 **Write your own SQL** — full DuckDB SQL syntax supported
+
+No server required. No installation. Everything runs in your browser.
+
+---
+
 ## Dashboard
 
 The built-in web UI lets you:
