@@ -1,1418 +1,2795 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>ZeTurf SQL Playground — 32,000+ Horse Races</title>
+
 <meta name="description" content="Interactive SQL playground with 1 year of French horse racing data. Query 32,000+ races, 200k results, 400k odds — all in your browser.">
 
 <!-- DuckDB WASM (ESM via CDN) -->
+
 <script type="module">
+
   // Re-export duckdb to window so non-module code can access it
+
   import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm';
+
   window._duckdb = duckdb;
+
   window.dispatchEvent(new Event('duckdb-ready'));
+
 </script>
 
 <style>
+
   :root {
+
     --navy: #1B3A6B;
+
     --navy-dark: #0f2444;
+
     --gold: #C9A84C;
+
     --gold-light: #e8d48b;
+
     --light-blue: #E8F0FB;
+
     --bg: #f5f7fa;
+
     --card: #ffffff;
+
     --text: #1a1a2e;
+
     --text-muted: #666;
+
     --border: #d6dce4;
+
     --green: #27ae60;
+
     --red: #e74c3c;
+
     --mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
+
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
     background: var(--bg);
+
     color: var(--text);
+
     line-height: 1.6;
+
   }
 
   /* ─── Header ─── */
+
   .header {
+
     background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+
     color: white;
+
     padding: 1.5rem 2rem;
+
     display: flex;
+
     align-items: center;
+
     gap: 1.5rem;
+
     flex-wrap: wrap;
+
     box-shadow: 0 2px 12px rgba(0,0,0,.25);
+
   }
+
   .header-logo { font-size: 2.2rem; }
+
   .header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; }
+
   .header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+
   .header-stats {
+
     margin-left: auto;
+
     display: flex;
+
     gap: 1.5rem;
+
     flex-wrap: wrap;
+
   }
+
   .stat-pill {
+
     background: rgba(255,255,255,0.12);
+
     border: 1px solid rgba(255,255,255,0.2);
+
     border-radius: 20px;
+
     padding: 0.35rem 1rem;
+
     font-size: 0.8rem;
+
     white-space: nowrap;
+
   }
+
   .stat-pill strong { color: var(--gold-light); font-weight: 700; }
 
   /* ─── Layout ─── */
+
   .container {
+
     max-width: 1440px;
+
     margin: 0 auto;
+
     padding: 1.5rem;
+
     display: grid;
+
     grid-template-columns: 300px 1fr;
+
     gap: 1.5rem;
+
     min-height: calc(100vh - 120px);
+
   }
+
   @media (max-width: 900px) {
+
     .container { grid-template-columns: 1fr; }
+
   }
 
   /* ─── Sidebar ─── */
+
   .sidebar {
+
     background: var(--card);
+
     border-radius: 12px;
+
     border: 1px solid var(--border);
+
     overflow: hidden;
+
     max-height: calc(100vh - 150px);
+
     display: flex;
+
     flex-direction: column;
+
   }
+
   .sidebar-title {
+
     background: var(--navy);
+
     color: white;
+
     padding: 0.75rem 1rem;
+
     font-size: 0.85rem;
+
     font-weight: 700;
+
     letter-spacing: 0.5px;
+
     text-transform: uppercase;
+
     position: sticky;
+
     top: 0;
+
     z-index: 1;
+
   }
+
   .sidebar-search {
+
     padding: 0.5rem;
+
     border-bottom: 1px solid var(--border);
+
   }
+
   .sidebar-search input {
+
     width: 100%;
+
     padding: 0.4rem 0.7rem;
+
     border: 1px solid var(--border);
+
     border-radius: 6px;
+
     font-size: 0.8rem;
+
     outline: none;
+
   }
+
   .sidebar-search input:focus { border-color: var(--gold); }
+
   .query-list {
+
     overflow-y: auto;
+
     flex: 1;
+
     scrollbar-width: thin;
+
   }
+
   .query-group-title {
+
     font-size: 0.7rem;
+
     font-weight: 700;
+
     text-transform: uppercase;
+
     letter-spacing: 1px;
+
     color: var(--gold);
+
     padding: 0.8rem 1rem 0.3rem;
+
     background: var(--light-blue);
+
     position: sticky;
+
     top: 0;
+
   }
+
   .query-item {
+
     padding: 0.55rem 1rem;
+
     cursor: pointer;
+
     font-size: 0.8rem;
+
     border-bottom: 1px solid #f0f0f0;
+
     transition: all 0.15s;
+
     display: flex;
+
     align-items: center;
+
     gap: 0.5rem;
+
   }
+
   .query-item:hover { background: var(--light-blue); }
+
   .query-item.active { background: var(--navy); color: white; font-weight: 600; }
+
   .query-item .icon { font-size: 0.9rem; flex-shrink: 0; }
 
   /* ─── Main Panel ─── */
+
   .main-panel {
+
     display: flex;
+
     flex-direction: column;
+
     gap: 1rem;
+
   }
 
   /* ─── Editor ─── */
+
   .editor-wrap {
+
     background: var(--card);
+
     border-radius: 12px;
+
     border: 1px solid var(--border);
+
     overflow: hidden;
+
     box-shadow: 0 1px 4px rgba(0,0,0,.06);
+
   }
+
   .editor-toolbar {
+
     display: flex;
+
     align-items: center;
+
     padding: 0.5rem 1rem;
+
     background: #f8f9fb;
+
     border-bottom: 1px solid var(--border);
+
     gap: 0.7rem;
+
     flex-wrap: wrap;
+
   }
+
   .editor-toolbar label {
+
     font-size: 0.75rem;
+
     font-weight: 600;
+
     color: var(--text-muted);
+
     text-transform: uppercase;
+
     letter-spacing: 0.5px;
+
   }
+
   .btn {
+
     display: inline-flex;
+
     align-items: center;
+
     gap: 0.4rem;
+
     padding: 0.45rem 1.2rem;
+
     border: none;
+
     border-radius: 6px;
+
     font-size: 0.85rem;
+
     font-weight: 600;
+
     cursor: pointer;
+
     transition: all 0.2s;
+
   }
+
   .btn-run {
+
     background: var(--green);
+
     color: white;
+
     margin-left: auto;
+
   }
+
   .btn-run:hover { background: #219a52; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(39,174,96,.3); }
+
   .btn-run:active { transform: translateY(0); }
+
   .btn-run:disabled { opacity: 0.5; cursor: wait; }
+
   .btn-clear {
+
     background: transparent;
+
     color: var(--text-muted);
+
     border: 1px solid var(--border);
+
   }
+
   .btn-clear:hover { background: #f0f0f0; }
+
   .btn-export {
+
     background: var(--gold);
+
     color: var(--navy-dark);
+
   }
+
   .btn-export:hover { background: var(--gold-light); }
 
   #sql-editor {
+
     width: 100%;
+
     min-height: 140px;
+
     max-height: 300px;
+
     padding: 1rem;
+
     font-family: var(--mono);
+
     font-size: 0.9rem;
+
     line-height: 1.6;
+
     border: none;
+
     outline: none;
+
     resize: vertical;
+
     background: #1e1e2e;
+
     color: #cdd6f4;
+
     tab-size: 2;
+
   }
 
   .shortcut-hint {
+
     font-size: 0.7rem;
+
     color: var(--text-muted);
+
     padding: 0 1rem 0.5rem;
+
     background: #1e1e2e;
+
   }
+
   .shortcut-hint kbd {
+
     background: #313244;
+
     color: #cdd6f4;
+
     padding: 1px 6px;
+
     border-radius: 3px;
+
     font-family: var(--mono);
+
     font-size: 0.65rem;
+
     border: 1px solid #45475a;
+
   }
 
   /* ─── Status Bar ─── */
+
   .status-bar {
+
     display: flex;
+
     align-items: center;
+
     gap: 1rem;
+
     padding: 0.4rem 0;
+
     font-size: 0.78rem;
+
     color: var(--text-muted);
+
     flex-wrap: wrap;
+
   }
+
   .status-bar .badge {
+
     display: inline-flex;
+
     align-items: center;
+
     gap: 0.3rem;
+
     background: var(--light-blue);
+
     padding: 0.2rem 0.6rem;
+
     border-radius: 10px;
+
     font-weight: 600;
+
     font-size: 0.72rem;
+
   }
+
   .badge.success { background: #e6f4ea; color: #1a7f37; }
+
   .badge.error { background: #ffebee; color: #c62828; }
+
   .badge.loading { background: #fff3e0; color: #e65100; }
 
   /* ─── Results ─── */
+
   .results-wrap {
+
     background: var(--card);
+
     border-radius: 12px;
+
     border: 1px solid var(--border);
+
     overflow: hidden;
+
     flex: 1;
+
     display: flex;
+
     flex-direction: column;
+
     box-shadow: 0 1px 4px rgba(0,0,0,.06);
+
   }
+
   .results-header {
+
     display: flex;
+
     align-items: center;
+
     padding: 0.5rem 1rem;
+
     background: #f8f9fb;
+
     border-bottom: 1px solid var(--border);
+
     gap: 0.7rem;
+
     font-size: 0.8rem;
+
   }
+
   .results-header .tab {
+
     padding: 0.3rem 0.8rem;
+
     border-radius: 6px;
+
     cursor: pointer;
+
     font-weight: 600;
+
     transition: all 0.15s;
+
   }
+
   .results-header .tab.active { background: var(--navy); color: white; }
+
   .results-header .tab:not(.active):hover { background: #eee; }
 
   .results-table-wrap {
+
     overflow: auto;
+
     flex: 1;
+
     max-height: 500px;
+
   }
+
   .results-table {
+
     width: 100%;
+
     border-collapse: collapse;
+
     font-size: 0.8rem;
+
   }
+
   .results-table th {
+
     position: sticky;
+
     top: 0;
+
     z-index: 1;
+
     background: var(--navy);
+
     color: white;
+
     padding: 0.5rem 0.8rem;
+
     text-align: left;
+
     font-weight: 600;
+
     font-size: 0.75rem;
+
     text-transform: uppercase;
+
     letter-spacing: 0.3px;
+
     white-space: nowrap;
+
     border-right: 1px solid rgba(255,255,255,0.1);
+
   }
+
   .results-table td {
+
     padding: 0.4rem 0.8rem;
+
     border-bottom: 1px solid #f0f2f5;
+
     white-space: nowrap;
+
     max-width: 300px;
+
     overflow: hidden;
+
     text-overflow: ellipsis;
+
   }
+
   .results-table tbody tr:nth-child(even) { background: #f9fafc; }
+
   .results-table tbody tr:hover { background: var(--light-blue); }
 
   .results-message {
+
     padding: 3rem;
+
     text-align: center;
+
     color: var(--text-muted);
+
     font-size: 0.9rem;
+
   }
+
   .results-message .emoji { font-size: 2.5rem; display: block; margin-bottom: 0.8rem; }
+
   .results-message.error { color: var(--red); }
 
   /* ─── Loading Overlay ─── */
+
   .loading-overlay {
+
     position: fixed;
+
     inset: 0;
+
     background: rgba(15,36,68,0.92);
+
     display: flex;
+
     flex-direction: column;
+
     align-items: center;
+
     justify-content: center;
+
     z-index: 1000;
+
     color: white;
+
     gap: 1.5rem;
+
     transition: opacity 0.4s;
+
   }
+
   .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
   .spinner {
+
     width: 48px; height: 48px;
+
     border: 4px solid rgba(255,255,255,0.2);
+
     border-top-color: var(--gold);
+
     border-radius: 50%;
+
     animation: spin 0.8s linear infinite;
+
   }
+
   @keyframes spin { to { transform: rotate(360deg); } }
+
   .loading-overlay h2 { font-size: 1.3rem; }
+
   .loading-overlay .progress-text { font-size: 0.85rem; opacity: 0.7; }
 
   /* ─── Schema Drawer ─── */
+
   .schema-toggle {
+
     position: fixed;
+
     bottom: 1rem;
+
     right: 1rem;
+
     background: var(--navy);
+
     color: white;
+
     border: none;
+
     border-radius: 50%;
+
     width: 48px; height: 48px;
+
     font-size: 1.4rem;
+
     cursor: pointer;
+
     box-shadow: 0 4px 12px rgba(0,0,0,.3);
+
     z-index: 100;
+
     transition: all 0.2s;
+
   }
+
   .schema-toggle:hover { transform: scale(1.1); background: var(--gold); color: var(--navy-dark); }
 
   .schema-drawer {
+
     position: fixed;
+
     bottom: 4.5rem;
+
     right: 1rem;
+
     width: 360px;
+
     max-height: 70vh;
+
     background: var(--card);
+
     border-radius: 12px;
+
     border: 1px solid var(--border);
+
     box-shadow: 0 8px 30px rgba(0,0,0,.15);
+
     overflow: auto;
+
     z-index: 99;
+
     display: none;
+
     font-size: 0.8rem;
+
   }
+
   .schema-drawer.open { display: block; }
+
   .schema-drawer h3 {
+
     position: sticky; top: 0;
+
     background: var(--navy);
+
     color: white;
+
     padding: 0.7rem 1rem;
+
     font-size: 0.85rem;
+
   }
+
   .schema-table { margin: 0.8rem 1rem; }
+
   .schema-table-name {
+
     font-weight: 700;
+
     color: var(--navy);
+
     font-size: 0.85rem;
+
     margin-bottom: 0.3rem;
+
     display: flex;
+
     align-items: center;
+
     gap: 0.4rem;
+
   }
+
   .schema-table-name .count { font-weight: 400; color: var(--text-muted); font-size: 0.75rem; }
+
   .schema-cols {
+
     display: grid;
+
     grid-template-columns: 1fr 1fr;
+
     gap: 0.15rem 1rem;
+
     padding-left: 1rem;
+
     margin-bottom: 0.8rem;
+
     border-left: 2px solid var(--gold);
+
   }
+
   .schema-col { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); }
 
   /* ─── Footer ─── */
+
   .footer {
+
     text-align: center;
+
     padding: 1.5rem;
+
     font-size: 0.78rem;
+
     color: var(--text-muted);
+
     border-top: 1px solid var(--border);
+
     margin-top: 1rem;
+
   }
+
   .footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
+
   .footer a:hover { color: var(--gold); }
+
 </style>
+
 </head>
+
 <body>
 
 <!-- Loading Overlay -->
+
 <div class="loading-overlay" id="loadingOverlay">
+
   <div class="spinner"></div>
-  <h2>🐴 Loading ZeTurf SQL Playground</h2>
+
+  <h2>ðŸ´ Loading ZeTurf SQL Playground</h2>
+
   <div class="progress-text" id="loadingText">Initializing DuckDB engine…</div>
+
 </div>
 
 <!-- Header -->
+
 <header class="header">
-  <div class="header-logo">🏇</div>
+
+  <div class="header-logo">ðŸ‡</div>
+
   <div>
+
     <h1>ZeTurf SQL Playground</h1>
+
     <p>Query 1 year of French horse racing data — entirely in your browser</p>
+
   </div>
+
   <div class="header-stats">
+
     <span class="stat-pill"><strong>32,110</strong> races</span>
+
     <span class="stat-pill"><strong>200,604</strong> results</span>
+
     <span class="stat-pill"><strong>408,047</strong> odds</span>
+
     <span class="stat-pill"><strong>417</strong> venues</span>
+
     <span class="stat-pill">Apr 2025 → Mar 2026</span>
+
   </div>
+
 </header>
 
 <!-- Main Layout -->
+
 <div class="container">
 
   <!-- Sidebar: Query Library -->
+
   <aside class="sidebar">
+
     <div class="sidebar-title">📚 Query Library</div>
+
     <div class="sidebar-search">
+
       <input type="text" id="querySearch" placeholder="Search queries…" autocomplete="off">
+
     </div>
+
     <div class="query-list" id="queryList"></div>
+
   </aside>
 
   <!-- Main Panel -->
+
   <main class="main-panel">
 
     <!-- Editor -->
+
     <div class="editor-wrap">
+
       <div class="editor-toolbar">
+
         <label>SQL Editor</label>
+
         <button class="btn btn-clear" onclick="clearEditor()">✕ Clear</button>
+
         <button class="btn btn-export" onclick="exportCSV()" id="btnExport" disabled>⬇ CSV</button>
+
         <button class="btn btn-run" onclick="runQuery()" id="btnRun" disabled>▶ Run Query</button>
+
       </div>
+
       <textarea id="sql-editor" spellcheck="false" placeholder="-- Write your SQL here or pick a query from the library on the left…
+
 -- Tables: races, arrivee, cotes, partants
+
 -- Press Ctrl+Enter to run"></textarea>
+
       <div class="shortcut-hint">
+
         <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to run &nbsp;|&nbsp;
+
         <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> to format
+
       </div>
+
     </div>
 
     <!-- Status -->
+
     <div class="status-bar" id="statusBar">
+
       <span class="badge loading" id="statusBadge">⏳ Initializing…</span>
+
       <span id="statusText">Loading DuckDB WASM engine and data…</span>
+
     </div>
 
     <!-- Results -->
+
     <div class="results-wrap">
+
       <div class="results-header">
+
         <span class="tab active" id="tabTable" onclick="switchTab('table')">📊 Table</span>
+
         <span class="tab" id="tabRaw" onclick="switchTab('raw')">{ } JSON</span>
+
         <span style="margin-left:auto; font-size:0.75rem; color:var(--text-muted)" id="rowCount"></span>
+
       </div>
+
       <div id="resultsContent">
+
         <div class="results-message">
-          <span class="emoji">🏇</span>
+
+          <span class="emoji">ðŸ‡</span>
+
           Pick a query from the library or write your own SQL to get started.
+
         </div>
+
       </div>
+
     </div>
+
   </main>
+
 </div>
 
 <!-- Schema Drawer -->
+
 <button class="schema-toggle" id="schemaToggle" onclick="toggleSchema()" title="View Schema">🗄</button>
+
 <div class="schema-drawer" id="schemaDrawer">
+
   <h3>📋 Database Schema</h3>
+
   <div class="schema-table">
-    <div class="schema-table-name">🏁 races <span class="count">(32,110 rows)</span></div>
+
+    <div class="schema-table-name">ðŸ races <span class="count">(32,110 rows)</span></div>
+
     <div class="schema-cols">
+
       <span class="schema-col">race_id</span><span class="schema-col">VARCHAR PK</span>
+
       <span class="schema-col">race_date</span><span class="schema-col">DATE</span>
+
       <span class="schema-col">reunion_number</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">course_number</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">hippodrome</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_type</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">distance</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">prize</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">num_starters</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">official_result</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_time</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">url</span><span class="schema-col">VARCHAR</span>
+
     </div>
+
   </div>
+
   <div class="schema-table">
-    <div class="schema-table-name">🏆 arrivee <span class="count">(200,604 rows)</span></div>
+
+    <div class="schema-table-name">ðŸ† arrivee <span class="count">(200,604 rows)</span></div>
+
     <div class="schema-cols">
+
       <span class="schema-col">race_id</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_date</span><span class="schema-col">DATE</span>
+
       <span class="schema-col">hippodrome</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">position</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">horse_number</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">horse_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">sex_age</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">jockey</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">time_total</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">time_per_km</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">distance_length</span><span class="schema-col">VARCHAR</span>
+
     </div>
+
   </div>
+
   <div class="schema-table">
+
     <div class="schema-table-name">💰 cotes <span class="count">(408,047 rows)</span></div>
+
     <div class="schema-cols">
+
       <span class="schema-col">race_id</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_date</span><span class="schema-col">DATE</span>
+
       <span class="schema-col">hippodrome</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">bet_type</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">sub_type</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">combination</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">payout</span><span class="schema-col">VARCHAR</span>
+
     </div>
+
   </div>
+
   <div class="schema-table">
-    <div class="schema-table-name">🐎 partants <span class="count">(193,884 rows)</span></div>
+
+    <div class="schema-table-name">ðŸŽ partants <span class="count">(193,884 rows)</span></div>
+
     <div class="schema-cols">
+
       <span class="schema-col">race_id</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_date</span><span class="schema-col">DATE</span>
+
       <span class="schema-col">hippodrome</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">race_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">horse_number</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">horse_name</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">sex_age</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">jockey</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">trainer</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">weight_handicap</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">draw</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">odds</span><span class="schema-col">VARCHAR</span>
+
       <span class="schema-col">status</span><span class="schema-col">VARCHAR</span>
+
     </div>
+
   </div>
+
 </div>
 
 <!-- Footer -->
+
 <footer class="footer">
+
   Built by <a href="mailto:poornima2489@gmail.com">Poornima Ramakrishnan</a> &nbsp;·&nbsp;
+
   Powered by <a href="https://duckdb.org/docs/api/wasm/overview" target="_blank">DuckDB-WASM</a> &nbsp;·&nbsp;
+
   Data from <a href="https://www.zeturf.fr" target="_blank">ZeTurf.fr</a> &nbsp;·&nbsp;
+
   <a href="https://github.com/poornimaramakrishnan/zeturf-scraper-docker" target="_blank">GitHub</a>
+
 </footer>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════════════
-// QUERY LIBRARY — 25+ domain-specific queries for horse racing analytics
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// QUERY LIBRARY — 25 domain-specific queries for horse racing analytics
+
+// NOTE: position values are French: '1er', '2e', '3e', '4e', ...
+
+//       payout format: '1 770,50' — strip spaces then replace comma with dot
+
+//       sex_age format: 'H/4' (H=Hongre/gelding, M=Mâle, F=Femelle), age after /
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 const QUERIES = [
+
   // ─── Overview & Exploration ───
+
   {
-    group: "🔍 Data Exploration",
+
+    group: "ðŸ” Data Exploration",
+
     name: "Dataset Overview",
+
     icon: "📊",
+
     sql: `-- Quick overview of the entire dataset
+
 SELECT
-  (SELECT COUNT(*) FROM races) AS total_races,
-  (SELECT COUNT(*) FROM arrivee) AS total_results,
-  (SELECT COUNT(*) FROM cotes) AS total_odds,
-  (SELECT COUNT(*) FROM partants) AS total_starters,
+
+  (SELECT COUNT(*)              FROM races)    AS total_races,
+
+  (SELECT COUNT(*)              FROM arrivee)  AS total_results,
+
+  (SELECT COUNT(*)              FROM cotes)    AS total_odds_payouts,
+
+  (SELECT COUNT(*)              FROM partants) AS total_starters,
+
   (SELECT COUNT(DISTINCT hippodrome) FROM races) AS hippodromes,
-  (SELECT MIN(race_date) FROM races) AS first_date,
-  (SELECT MAX(race_date) FROM races) AS last_date;`
+
+  (SELECT MIN(race_date)        FROM races)    AS first_date,
+
+  (SELECT MAX(race_date)        FROM races)    AS last_date;`
+
   },
+
   {
-    group: "🔍 Data Exploration",
-    name: "Sample Race Card",
+
+    group: "ðŸ” Data Exploration",
+
+    name: "Recent Race Card (Vincennes)",
+
     icon: "📋",
-    sql: `-- Full race card for one day at a French hippodrome
-SELECT r.race_date, r.hippodrome, r.course_number AS course,
-       r.race_name, r.race_type, r.distance, r.prize,
-       r.num_starters, r.official_result
+
+    sql: `-- Latest race card at Vincennes (France's top trotting track)
+
+SELECT r.race_date, r.course_number AS course,
+
+       r.race_name, r.race_type, r.distance,
+
+       r.prize, r.num_starters, r.official_result
+
 FROM races r
-WHERE r.hippodrome LIKE '%VINCENNES%'
+
+WHERE r.hippodrome = 'VINCENNES'
+
 ORDER BY r.race_date DESC, r.course_number
+
 LIMIT 20;`
+
   },
+
   {
-    group: "🔍 Data Exploration",
-    name: "All Race Types",
-    icon: "🏷️",
-    sql: `-- Distribution of race types across the dataset
-SELECT COALESCE(NULLIF(race_type, ''), 'Unknown') AS race_type,
-       COUNT(*) AS races,
-       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct,
-       MIN(race_date) AS first_seen,
-       MAX(race_date) AS last_seen
+
+    group: "ðŸ” Data Exploration",
+
+    name: "Race Type Distribution",
+
+    icon: "ðŸ·️",
+
+    sql: `-- Distribution of race types across the full dataset
+
+SELECT
+
+  COALESCE(NULLIF(TRIM(race_type), ''), 'Unknown') AS race_type,
+
+  COUNT(*) AS races,
+
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct,
+
+  MIN(race_date) AS first_seen,
+
+  MAX(race_date) AS last_seen
+
 FROM races
+
 GROUP BY 1
+
 ORDER BY races DESC;`
+
+  },
+
+  {
+
+    group: "ðŸ” Data Exploration",
+
+    name: "Finishing Position Breakdown",
+
+    icon: "ðŸ",
+
+    sql: `-- How many horses finish in each position?
+
+-- Positions use French ordinals: 1er, 2e, 3e, ...
+
+SELECT position,
+
+       COUNT(*) AS finishers,
+
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS pct
+
+FROM arrivee
+
+GROUP BY position
+
+ORDER BY COUNT(*) DESC;`
+
   },
 
   // ─── Hippodrome Analytics ───
+
   {
-    group: "🏟️ Hippodrome Analytics",
-    name: "Top 30 Hippodromes by Volume",
-    icon: "🏟️",
+
+    group: "ðŸŸ️ Hippodrome Analytics",
+
+    name: "Top 30 Hippodromes by Race Count",
+
+    icon: "ðŸŸ️",
+
     sql: `-- Busiest hippodromes ranked by race count
+
 SELECT hippodrome,
+
        COUNT(*) AS races,
+
        COUNT(DISTINCT race_date) AS race_days,
+
        ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT race_date), 1) AS races_per_day,
+
        MIN(race_date) AS first_date,
+
        MAX(race_date) AS last_date
+
 FROM races
+
 GROUP BY hippodrome
+
 ORDER BY races DESC
+
 LIMIT 30;`
+
   },
+
   {
-    group: "🏟️ Hippodrome Analytics",
+
+    group: "ðŸŸ️ Hippodrome Analytics",
+
     name: "French Hippodromes Only",
+
     icon: "🇫🇷",
-    sql: `-- Top French hippodromes (filtering out international tracks)
-SELECT hippodrome, COUNT(*) AS races,
-       COUNT(DISTINCT race_date) AS days,
-       STRING_AGG(DISTINCT race_type, ', ' ORDER BY race_type) AS types
-FROM races
-WHERE hippodrome IN (
-  'VINCENNES','AUTEUIL','LONGCHAMP','CHANTILLY','DEAUVILLE',
-  'SAINT-CLOUD','LYON PARILLY','COMPIEGNE','ENGHIEN',
-  'CAGNES-SUR-MER','MAISONS-LAFFITTE','TOULOUSE',
-  'BORDEAUX LE BOUSCAT','NANTES','STRASBOURG','CABOURG',
-  'MARSEILLE VIVAUX','PAU','VICHY','FONTAINEBLEAU',
-  'CRAON','MAUQUENCHY','LE MANS','PORNICHET LA BAULE'
-)
-GROUP BY hippodrome
-ORDER BY races DESC;`
-  },
-  {
-    group: "🏟️ Hippodrome Analytics",
-    name: "Hippodrome Monthly Calendar",
-    icon: "📅",
-    sql: `-- When does each major hippodrome hold races? (monthly heatmap data)
+
+    sql: `-- Top French hippodromes with race type breakdown
+
 SELECT hippodrome,
-       EXTRACT(MONTH FROM race_date) AS month,
-       COUNT(*) AS races
+
+       COUNT(*) AS races,
+
+       COUNT(DISTINCT race_date) AS days,
+
+       SUM(CASE WHEN race_type = 'Plat'    THEN 1 ELSE 0 END) AS plat,
+
+       SUM(CASE WHEN race_type = 'Attelé'  THEN 1 ELSE 0 END) AS attele,
+
+       SUM(CASE WHEN race_type = 'Monté'   THEN 1 ELSE 0 END) AS monte,
+
+       SUM(CASE WHEN race_type = 'Haies'   THEN 1 ELSE 0 END) AS haies
+
 FROM races
+
+WHERE hippodrome IN (
+
+  'VINCENNES','AUTEUIL','LONGCHAMP','CHANTILLY','DEAUVILLE',
+
+  'SAINT-CLOUD','LYON PARILLY','COMPIEGNE','ENGHIEN',
+
+  'CAGNES SUR MER','MAISONS-LAFFITTE','TOULOUSE',
+
+  'BORDEAUX LE BOUSCAT','NANTES','STRASBOURG','CABOURG',
+
+  'MARSEILLE VIVAUX','PAU','VICHY','FONTAINEBLEAU',
+
+  'CRAON','MAUQUENCHY','LE MANS','PORNICHET LA BAULE'
+
+)
+
+GROUP BY hippodrome
+
+ORDER BY races DESC;`
+
+  },
+
+  {
+
+    group: "ðŸŸ️ Hippodrome Analytics",
+
+    name: "Monthly Racing Calendar by Venue",
+
+    icon: "📅",
+
+    sql: `-- When does each top hippodrome hold races? (monthly counts)
+
+SELECT hippodrome,
+
+       EXTRACT(MONTH FROM race_date) AS month,
+
+       COUNT(*) AS races
+
+FROM races
+
 WHERE hippodrome IN ('VINCENNES','AUTEUIL','LONGCHAMP','CHANTILLY','DEAUVILLE')
+
 GROUP BY hippodrome, month
+
 ORDER BY hippodrome, month;`
+
+  },
+
+  {
+
+    group: "ðŸŸ️ Hippodrome Analytics",
+
+    name: "Average Field Size by Hippodrome",
+
+    icon: "👥",
+
+    sql: `-- Which hippodromes attract the biggest fields?
+
+SELECT r.hippodrome,
+
+       COUNT(DISTINCT r.race_id) AS races,
+
+       ROUND(AVG(CAST(r.num_starters AS INTEGER)), 1) AS avg_field_size,
+
+       MAX(CAST(r.num_starters AS INTEGER)) AS max_field
+
+FROM races r
+
+WHERE r.num_starters IS NOT NULL
+
+  AND TRY_CAST(r.num_starters AS INTEGER) > 0
+
+GROUP BY r.hippodrome
+
+HAVING COUNT(DISTINCT r.race_id) >= 20
+
+ORDER BY avg_field_size DESC
+
+LIMIT 25;`
+
   },
 
   // ─── Jockey Performance ───
+
   {
-    group: "🏇 Jockey Performance",
+
+    group: "ðŸ‡ Jockey Performance",
+
     name: "Top 30 Winning Jockeys",
+
     icon: "🥇",
-    sql: `-- Most successful jockeys by win count
+
+    sql: `-- Most successful jockeys by win count (position = '1er' in French)
+
 SELECT a.jockey,
+
        COUNT(*) AS wins,
-       COUNT(DISTINCT a.race_id) AS races_won,
+
+       COUNT(DISTINCT a.race_id)   AS races_won,
+
        COUNT(DISTINCT a.hippodrome) AS venues,
+
        MIN(a.race_date) AS first_win,
+
        MAX(a.race_date) AS last_win
+
 FROM arrivee a
-WHERE a.position = '1'
+
+WHERE a.position = '1er'
+
   AND a.jockey IS NOT NULL AND a.jockey != ''
+
 GROUP BY a.jockey
+
 ORDER BY wins DESC
+
 LIMIT 30;`
+
   },
+
   {
-    group: "🏇 Jockey Performance",
+
+    group: "ðŸ‡ Jockey Performance",
+
     name: "Jockey Win Rate (min 50 rides)",
+
     icon: "📈",
-    sql: `-- Jockeys with best win percentage (minimum 50 recorded rides)
+
+    sql: `-- Win & top-3 percentage for jockeys with ≥50 recorded rides
+
 WITH rides AS (
+
   SELECT jockey,
+
          COUNT(*) AS total_rides,
-         SUM(CASE WHEN position = '1' THEN 1 ELSE 0 END) AS wins,
-         SUM(CASE WHEN position IN ('1','2','3') THEN 1 ELSE 0 END) AS top3
+
+         SUM(CASE WHEN position = '1er' THEN 1 ELSE 0 END) AS wins,
+
+         SUM(CASE WHEN position IN ('1er','2e','3e') THEN 1 ELSE 0 END) AS top3
+
   FROM arrivee
+
   WHERE jockey IS NOT NULL AND jockey != ''
+
   GROUP BY jockey
+
   HAVING COUNT(*) >= 50
+
 )
+
 SELECT jockey, total_rides, wins,
-       ROUND(wins * 100.0 / total_rides, 1) AS win_pct,
+
+       ROUND(wins  * 100.0 / total_rides, 1) AS win_pct,
+
        top3,
-       ROUND(top3 * 100.0 / total_rides, 1) AS top3_pct
+
+       ROUND(top3  * 100.0 / total_rides, 1) AS top3_pct
+
 FROM rides
+
 ORDER BY win_pct DESC
+
 LIMIT 30;`
+
   },
+
   {
-    group: "🏇 Jockey Performance",
-    name: "Jockey × Hippodrome Dominance",
+
+    group: "ðŸ‡ Jockey Performance",
+
+    name: "Jockey Dominance by Hippodrome",
+
     icon: "🎯",
-    sql: `-- Which jockeys dominate specific hippodromes?
+
+    sql: `-- Which jockeys own specific hippodromes? (≥5 wins at that venue)
+
 SELECT a.jockey, a.hippodrome,
+
        COUNT(*) AS wins,
+
        MIN(a.race_date) AS first_win,
+
        MAX(a.race_date) AS last_win
+
 FROM arrivee a
-WHERE a.position = '1'
+
+WHERE a.position = '1er'
+
   AND a.jockey IS NOT NULL AND a.jockey != ''
+
 GROUP BY a.jockey, a.hippodrome
+
 HAVING COUNT(*) >= 5
+
 ORDER BY wins DESC
+
 LIMIT 40;`
+
   },
 
   // ─── Horse Analysis ───
+
   {
-    group: "🐎 Horse Analysis",
+
+    group: "ðŸŽ Horse Analysis",
+
     name: "Top Winning Horses",
-    icon: "🏆",
-    sql: `-- Horses with the most victories
+
+    icon: "ðŸ†",
+
+    sql: `-- Horses with the most victories (position = '1er')
+
 SELECT a.horse_name,
+
        COUNT(*) AS wins,
-       STRING_AGG(DISTINCT a.hippodrome, ', ' ORDER BY a.hippodrome) AS venues,
-       STRING_AGG(DISTINCT a.jockey, ', ' ORDER BY a.jockey) AS jockeys,
+
+       COUNT(DISTINCT a.hippodrome) AS venues,
+
+       COUNT(DISTINCT a.jockey)     AS jockeys_used,
+
        MIN(a.race_date) AS first_win,
+
        MAX(a.race_date) AS last_win
+
 FROM arrivee a
-WHERE a.position = '1'
+
+WHERE a.position = '1er'
+
   AND a.horse_name IS NOT NULL AND a.horse_name != ''
+
 GROUP BY a.horse_name
+
 HAVING COUNT(*) >= 3
+
 ORDER BY wins DESC
+
 LIMIT 30;`
+
   },
+
   {
-    group: "🐎 Horse Analysis",
+
+    group: "ðŸŽ Horse Analysis",
+
     name: "Horse Career Progression",
+
     icon: "📉",
-    sql: `-- Track a specific horse's career (example: pick any frequent winner)
+
+    sql: `-- Full career of the horse with most wins (all positions)
+
 WITH top_horse AS (
+
   SELECT horse_name FROM arrivee
-  WHERE position = '1' AND horse_name != ''
+
+  WHERE position = '1er' AND horse_name != ''
+
   GROUP BY horse_name ORDER BY COUNT(*) DESC LIMIT 1
+
 )
+
 SELECT a.race_date, a.hippodrome, a.race_name,
-       a.position, a.jockey, a.time_total,
-       a.distance_length AS dist_to_winner
+
+       a.position, a.jockey,
+
+       a.distance_length AS time_gap
+
 FROM arrivee a
+
 WHERE a.horse_name = (SELECT horse_name FROM top_horse)
+
 ORDER BY a.race_date;`
+
   },
+
   {
-    group: "🐎 Horse Analysis",
-    name: "Age Distribution of Winners",
+
+    group: "ðŸŽ Horse Analysis",
+
+    name: "Winners by Sex & Age",
+
     icon: "🎂",
-    sql: `-- What age horses win most frequently?
+
+    sql: `-- Age & sex breakdown of race winners
+
+-- sex_age format: H/4 = Hongre (gelding) age 4, M = Mâle, F = Femelle
+
 SELECT sex_age,
+
+       SPLIT_PART(sex_age, '/', 1) AS sex,
+
+       TRY_CAST(SPLIT_PART(sex_age, '/', 2) AS INTEGER) AS age,
+
        COUNT(*) AS wins,
-       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS pct
+
 FROM arrivee
-WHERE position = '1'
+
+WHERE position = '1er'
+
   AND sex_age IS NOT NULL AND sex_age != ''
+
 GROUP BY sex_age
-ORDER BY wins DESC
-LIMIT 20;`
-  },
 
-  // ─── Trainer Insights ───
-  {
-    group: "👨‍🏫 Trainer Insights",
-    name: "Top Trainers by Starter Count",
-    icon: "📊",
-    sql: `-- Most active trainers across the dataset
-SELECT trainer,
-       COUNT(*) AS total_starters,
-       COUNT(DISTINCT race_id) AS races,
-       COUNT(DISTINCT hippodrome) AS venues
-FROM partants
-WHERE trainer IS NOT NULL AND trainer != ''
-GROUP BY trainer
-ORDER BY total_starters DESC
-LIMIT 30;`
-  },
-  {
-    group: "👨‍🏫 Trainer Insights",
-    name: "Trainer × Jockey Winning Combos",
-    icon: "🤝",
-    sql: `-- Most successful trainer-jockey partnerships
-SELECT p.trainer, a.jockey,
-       COUNT(*) AS wins,
-       COUNT(DISTINCT a.hippodrome) AS venues
-FROM arrivee a
-JOIN partants p ON p.race_id = a.race_id AND p.horse_name = a.horse_name
-WHERE a.position = '1'
-  AND p.trainer IS NOT NULL AND p.trainer != ''
-  AND a.jockey IS NOT NULL AND a.jockey != ''
-GROUP BY p.trainer, a.jockey
-HAVING COUNT(*) >= 3
 ORDER BY wins DESC
-LIMIT 30;`
-  },
 
-  // ─── Betting & Odds ───
-  {
-    group: "💰 Betting & Odds Analysis",
-    name: "Bet Types Distribution",
-    icon: "🎰",
-    sql: `-- What types of bets are recorded and how common are they?
-SELECT bet_type,
-       COUNT(*) AS entries,
-       COUNT(DISTINCT race_id) AS races,
-       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
-FROM cotes
-WHERE bet_type IS NOT NULL AND bet_type != ''
-GROUP BY bet_type
-ORDER BY entries DESC;`
-  },
-  {
-    group: "💰 Betting & Odds Analysis",
-    name: "Highest Payouts Ever",
-    icon: "💎",
-    sql: `-- Biggest payouts recorded (potential upsets / long shots)
-SELECT c.race_date, c.hippodrome, c.race_name,
-       c.bet_type, c.sub_type, c.combination,
-       c.payout
-FROM cotes c
-WHERE c.payout IS NOT NULL AND c.payout != ''
-  AND TRY_CAST(REPLACE(REPLACE(c.payout, ',', '.'), '€', '') AS DOUBLE) IS NOT NULL
-ORDER BY TRY_CAST(REPLACE(REPLACE(c.payout, ',', '.'), '€', '') AS DOUBLE) DESC
-LIMIT 30;`
-  },
-  {
-    group: "💰 Betting & Odds Analysis",
-    name: "Favourite vs Outsider Wins",
-    icon: "🎲",
-    sql: `-- How often does the favourite (lowest odds) actually win?
-WITH ranked AS (
-  SELECT p.race_id, p.horse_name,
-         TRY_CAST(REPLACE(p.odds, ',', '.') AS DOUBLE) AS odds_num,
-         ROW_NUMBER() OVER (PARTITION BY p.race_id ORDER BY TRY_CAST(REPLACE(p.odds, ',', '.') AS DOUBLE)) AS rank_by_odds
-  FROM partants p
-  WHERE p.odds IS NOT NULL AND p.odds != ''
-    AND TRY_CAST(REPLACE(p.odds, ',', '.') AS DOUBLE) IS NOT NULL
-),
-fav AS (
-  SELECT race_id, horse_name AS fav_horse, odds_num AS fav_odds
-  FROM ranked WHERE rank_by_odds = 1
-),
-winners AS (
-  SELECT race_id, horse_name AS winner
-  FROM arrivee WHERE position = '1'
-)
-SELECT
-  COUNT(*) AS races_with_fav,
-  SUM(CASE WHEN f.fav_horse = w.winner THEN 1 ELSE 0 END) AS fav_wins,
-  ROUND(SUM(CASE WHEN f.fav_horse = w.winner THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS fav_win_pct,
-  ROUND(AVG(f.fav_odds), 2) AS avg_fav_odds
-FROM fav f
-JOIN winners w ON w.race_id = f.race_id;`
-  },
-  {
-    group: "💰 Betting & Odds Analysis",
-    name: "Odds Accuracy by Hippodrome",
-    icon: "🎯",
-    sql: `-- At which hippodromes do favourites win most/least often?
-WITH ranked AS (
-  SELECT p.race_id, p.horse_name, p.hippodrome,
-         ROW_NUMBER() OVER (PARTITION BY p.race_id
-           ORDER BY TRY_CAST(REPLACE(p.odds, ',', '.') AS DOUBLE)) AS rk
-  FROM partants p
-  WHERE TRY_CAST(REPLACE(p.odds, ',', '.') AS DOUBLE) IS NOT NULL
-),
-fav AS (SELECT race_id, horse_name AS fav, hippodrome FROM ranked WHERE rk = 1),
-wins AS (SELECT race_id, horse_name AS winner FROM arrivee WHERE position = '1')
-SELECT f.hippodrome,
-       COUNT(*) AS races,
-       SUM(CASE WHEN f.fav = w.winner THEN 1 ELSE 0 END) AS fav_wins,
-       ROUND(SUM(CASE WHEN f.fav = w.winner THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS fav_win_pct
-FROM fav f
-JOIN wins w ON w.race_id = f.race_id
-GROUP BY f.hippodrome
-HAVING COUNT(*) >= 30
-ORDER BY fav_win_pct DESC
 LIMIT 25;`
+
   },
 
-  // ─── Speed & Performance ───
   {
-    group: "⚡ Speed & Performance",
-    name: "Fastest Race Times by Distance",
-    icon: "⏱️",
-    sql: `-- Fastest overall times grouped by distance (trotting races with times)
-SELECT r.distance,
-       r.race_type,
-       MIN(a.time_total) AS fastest_time,
-       a.horse_name,
-       a.jockey,
-       r.hippodrome,
-       r.race_date
-FROM arrivee a
-JOIN races r ON r.race_id = a.race_id
-WHERE a.position = '1'
-  AND a.time_total IS NOT NULL AND a.time_total != ''
-  AND r.distance IS NOT NULL AND r.distance != ''
-GROUP BY r.distance, r.race_type, a.horse_name, a.jockey, r.hippodrome, r.race_date
-ORDER BY r.distance, a.time_total
-LIMIT 30;`
+
+    group: "ðŸŽ Horse Analysis",
+
+    name: "Optimal Winning Age",
+
+    icon: "📊",
+
+    sql: `-- What age horses win the most races?
+
+SELECT TRY_CAST(SPLIT_PART(sex_age, '/', 2) AS INTEGER) AS age,
+
+       COUNT(*) AS wins
+
+FROM arrivee
+
+WHERE position = '1er'
+
+  AND sex_age IS NOT NULL AND sex_age LIKE '%/%'
+
+  AND TRY_CAST(SPLIT_PART(sex_age, '/', 2) AS INTEGER) BETWEEN 2 AND 15
+
+GROUP BY age
+
+ORDER BY age;`
+
   },
+
+  // ─── Betting & Payout Analysis ───
+
   {
-    group: "⚡ Speed & Performance",
-    name: "Average Speed per km by Race Type",
-    icon: "🏎️",
-    sql: `-- Which race types produce the fastest times per km?
-SELECT r.race_type,
-       COUNT(*) AS races_with_time,
-       MIN(a.time_per_km) AS best_per_km,
-       MAX(a.time_per_km) AS worst_per_km
-FROM arrivee a
-JOIN races r ON r.race_id = a.race_id
-WHERE a.position = '1'
-  AND a.time_per_km IS NOT NULL AND a.time_per_km != ''
-  AND r.race_type IS NOT NULL AND r.race_type != ''
-GROUP BY r.race_type
-ORDER BY races_with_time DESC;`
+
+    group: "💰 Betting & Payout Analysis",
+
+    name: "Bet Types Distribution",
+
+    icon: "🎰",
+
+    sql: `-- What bet types are available and how common are they?
+
+SELECT bet_type,
+
+       COUNT(*) AS payout_entries,
+
+       COUNT(DISTINCT race_id) AS races,
+
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS pct
+
+FROM cotes
+
+WHERE bet_type IS NOT NULL AND bet_type != ''
+
+GROUP BY bet_type
+
+ORDER BY payout_entries DESC;`
+
+  },
+
+  {
+
+    group: "💰 Betting & Payout Analysis",
+
+    name: "Highest Payouts Ever",
+
+    icon: "💎",
+
+    sql: `-- Biggest payouts (payout format: '1 770,50' → remove space, replace comma)
+
+SELECT c.race_date, c.hippodrome, c.race_name,
+
+       c.bet_type, c.combination, c.payout,
+
+       TRY_CAST(REPLACE(REPLACE(c.payout, ' ', ''), ',', '.') AS DOUBLE) AS payout_eur
+
+FROM cotes c
+
+WHERE c.payout IS NOT NULL AND c.payout != ''
+
+ORDER BY TRY_CAST(REPLACE(REPLACE(c.payout, ' ', ''), ',', '.') AS DOUBLE) DESC NULLS LAST
+
+LIMIT 30;`
+
+  },
+
+  {
+
+    group: "💰 Betting & Payout Analysis",
+
+    name: "Average Payout by Bet Type",
+
+    icon: "📊",
+
+    sql: `-- Average and max payout for each bet type
+
+SELECT bet_type,
+
+       COUNT(*) AS entries,
+
+       ROUND(AVG(TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE)), 2) AS avg_payout,
+
+       ROUND(MAX(TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE)), 2) AS max_payout,
+
+       ROUND(MIN(TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE)), 2) AS min_payout
+
+FROM cotes
+
+WHERE payout IS NOT NULL AND payout != ''
+
+GROUP BY bet_type
+
+ORDER BY avg_payout DESC;`
+
+  },
+
+  {
+
+    group: "💰 Betting & Payout Analysis",
+
+    name: "Best Paying Races (TRIORDRE)",
+
+    icon: "🎲",
+
+    sql: `-- Races with the biggest TRIORDRE (trifecta) payouts
+
+SELECT c.race_date, c.hippodrome, c.race_name,
+
+       c.combination, c.payout,
+
+       TRY_CAST(REPLACE(REPLACE(c.payout,' ',''),',','.') AS DOUBLE) AS payout_eur
+
+FROM cotes c
+
+WHERE c.bet_type = 'TRIORDRE'
+
+ORDER BY TRY_CAST(REPLACE(REPLACE(c.payout,' ',''),',','.') AS DOUBLE) DESC NULLS LAST
+
+LIMIT 25;`
+
+  },
+
+  {
+
+    group: "💰 Betting & Payout Analysis",
+
+    name: "High-Value Payout Days",
+
+    icon: "🔥",
+
+    sql: `-- Days with the most high-value payouts (>100€)
+
+SELECT race_date,
+
+       COUNT(*) AS big_payouts,
+
+       ROUND(MAX(TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE)), 2) AS max_payout,
+
+       ROUND(AVG(TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE)), 2) AS avg_big_payout
+
+FROM cotes
+
+WHERE TRY_CAST(REPLACE(REPLACE(payout,' ',''),',','.') AS DOUBLE) > 100
+
+GROUP BY race_date
+
+ORDER BY big_payouts DESC
+
+LIMIT 20;`
+
+  },
+
+  // ─── Time & Distance Analysis ───
+
+  {
+
+    group: "⏱️ Time & Distance",
+
+    name: "Race Distance Distribution",
+
+    icon: "ðŸ“",
+
+    sql: `-- Most common race distances (distance stored as '2175m', '1600m', etc.)
+
+SELECT distance,
+
+       TRY_CAST(REPLACE(distance, 'm', '') AS INTEGER) AS metres,
+
+       COUNT(*) AS races,
+
+       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) AS pct
+
+FROM races
+
+WHERE distance IS NOT NULL AND distance != ''
+
+GROUP BY distance
+
+ORDER BY races DESC
+
+LIMIT 30;`
+
+  },
+
+  {
+
+    group: "⏱️ Time & Distance",
+
+    name: "Distance × Race Type Matrix",
+
+    icon: "📊",
+
+    sql: `-- How distance varies by race type
+
+SELECT race_type,
+
+       COUNT(*) AS races,
+
+       MIN(TRY_CAST(REPLACE(distance,'m','') AS INTEGER)) AS min_m,
+
+       ROUND(AVG(TRY_CAST(REPLACE(distance,'m','') AS INTEGER))) AS avg_m,
+
+       MAX(TRY_CAST(REPLACE(distance,'m','') AS INTEGER)) AS max_m
+
+FROM races
+
+WHERE distance IS NOT NULL AND distance != ''
+
+  AND race_type IS NOT NULL AND race_type != ''
+
+  AND TRY_CAST(REPLACE(distance,'m','') AS INTEGER) IS NOT NULL
+
+GROUP BY race_type
+
+ORDER BY races DESC;`
+
+  },
+
+  // ─── Prize Money Analysis ───
+
+  {
+
+    group: "💵 Prize Money",
+
+    name: "Richest Races",
+
+    icon: "💰",
+
+    sql: `-- Top 30 highest prize money races
+
+-- prize format: '27000 €' → strip ' €' and cast
+
+SELECT race_date, hippodrome, race_name, race_type, distance,
+
+       prize,
+
+       TRY_CAST(REPLACE(REPLACE(prize,' €',''), ' ', '') AS INTEGER) AS prize_eur
+
+FROM races
+
+WHERE prize IS NOT NULL AND prize != ''
+
+  AND TRY_CAST(REPLACE(REPLACE(prize,' €',''), ' ', '') AS INTEGER) IS NOT NULL
+
+ORDER BY prize_eur DESC
+
+LIMIT 30;`
+
+  },
+
+  {
+
+    group: "💵 Prize Money",
+
+    name: "Average Prize by Hippodrome",
+
+    icon: "ðŸ…",
+
+    sql: `-- Which hippodromes offer the richest races on average?
+
+SELECT hippodrome,
+
+       COUNT(*) AS races,
+
+       ROUND(AVG(TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER))) AS avg_prize,
+
+       MAX(TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER)) AS max_prize
+
+FROM races
+
+WHERE prize IS NOT NULL AND prize != ''
+
+  AND TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER) IS NOT NULL
+
+GROUP BY hippodrome
+
+HAVING COUNT(*) >= 10
+
+ORDER BY avg_prize DESC
+
+LIMIT 25;`
+
+  },
+
+  {
+
+    group: "💵 Prize Money",
+
+    name: "Prize Money by Race Type",
+
+    icon: "📈",
+
+    sql: `-- Average & total prize pool by race discipline
+
+SELECT COALESCE(NULLIF(TRIM(race_type),''),'Unknown') AS race_type,
+
+       COUNT(*) AS races,
+
+       ROUND(AVG(TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER))) AS avg_prize,
+
+       SUM(TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER)) AS total_prize_pool
+
+FROM races
+
+WHERE prize IS NOT NULL AND prize != ''
+
+  AND TRY_CAST(REPLACE(REPLACE(prize,' €',''),' ','') AS INTEGER) IS NOT NULL
+
+GROUP BY 1
+
+ORDER BY total_prize_pool DESC;`
+
   },
 
   // ─── Seasonal & Trends ───
+
   {
+
     group: "📆 Seasonal Trends",
+
     name: "Monthly Race Volume",
-    icon: "📊",
-    sql: `-- How does racing activity vary by month?
-SELECT EXTRACT(YEAR FROM race_date) AS year,
-       EXTRACT(MONTH FROM race_date) AS month,
-       COUNT(*) AS races,
-       COUNT(DISTINCT hippodrome) AS active_venues,
-       COUNT(DISTINCT race_date) AS race_days
-FROM races
-GROUP BY year, month
-ORDER BY year, month;`
-  },
-  {
-    group: "📆 Seasonal Trends",
-    name: "Day-of-Week Patterns",
+
     icon: "📅",
-    sql: `-- Which days of the week have the most racing?
-SELECT DAYNAME(race_date) AS day_name,
-       DAYOFWEEK(race_date) AS day_num,
+
+    sql: `-- How does racing activity vary month by month?
+
+SELECT EXTRACT(YEAR  FROM race_date) AS year,
+
+       EXTRACT(MONTH FROM race_date) AS month,
+
        COUNT(*) AS races,
-       COUNT(DISTINCT race_date) AS race_dates,
-       ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT race_date), 1) AS avg_races_per_day
+
+       COUNT(DISTINCT hippodrome) AS active_venues,
+
+       COUNT(DISTINCT race_date)  AS race_days
+
 FROM races
-GROUP BY day_name, day_num
-ORDER BY day_num;`
+
+GROUP BY year, month
+
+ORDER BY year, month;`
+
   },
+
   {
+
     group: "📆 Seasonal Trends",
-    name: "Busiest Racing Days",
-    icon: "🔥",
-    sql: `-- Days with the most races across all hippodromes
-SELECT race_date,
-       COUNT(*) AS total_races,
-       COUNT(DISTINCT hippodrome) AS venues,
-       STRING_AGG(DISTINCT hippodrome, ', ' ORDER BY hippodrome) AS hippodromes
+
+    name: "Day-of-Week Patterns",
+
+    icon: "🗓️",
+
+    sql: `-- Which days of the week have the most racing action?
+
+SELECT DAYNAME(race_date)  AS day_name,
+
+       DAYOFWEEK(race_date) AS day_num,
+
+       COUNT(*) AS races,
+
+       COUNT(DISTINCT race_date) AS race_dates,
+
+       ROUND(COUNT(*) * 1.0 / COUNT(DISTINCT race_date), 1) AS avg_races_per_day
+
 FROM races
+
+GROUP BY day_name, day_num
+
+ORDER BY day_num;`
+
+  },
+
+  {
+
+    group: "📆 Seasonal Trends",
+
+    name: "Busiest Racing Days of the Year",
+
+    icon: "🔥",
+
+    sql: `-- Days with the most races scheduled across all hippodromes
+
+SELECT race_date,
+
+       COUNT(*) AS total_races,
+
+       COUNT(DISTINCT hippodrome) AS venues
+
+FROM races
+
 GROUP BY race_date
+
 ORDER BY total_races DESC
+
 LIMIT 20;`
+
   },
 
   // ─── Advanced / Cross-Table ───
+
   {
+
     group: "🧠 Advanced Analytics",
-    name: "Non-Partant (Scratched) Rate",
-    icon: "❌",
-    sql: `-- How often are horses scratched? Which hippodromes have highest NP rate?
-SELECT p.hippodrome,
-       COUNT(*) AS total_entries,
-       SUM(CASE WHEN p.status = 'Non Partant' OR p.status = 'NP' THEN 1 ELSE 0 END) AS scratched,
-       ROUND(SUM(CASE WHEN p.status = 'Non Partant' OR p.status = 'NP' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS scratch_pct
-FROM partants p
-GROUP BY p.hippodrome
-HAVING COUNT(*) >= 50
-ORDER BY scratch_pct DESC
-LIMIT 20;`
-  },
-  {
-    group: "🧠 Advanced Analytics",
-    name: "Draw Bias Analysis",
-    icon: "🔢",
-    sql: `-- Does starting draw (post position) affect winning? (flat racing)
-SELECT p.draw,
-       COUNT(*) AS starters,
-       SUM(CASE WHEN a.position = '1' THEN 1 ELSE 0 END) AS wins,
-       ROUND(SUM(CASE WHEN a.position = '1' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS win_pct
-FROM partants p
-JOIN arrivee a ON a.race_id = p.race_id AND a.horse_name = p.horse_name
-WHERE p.draw IS NOT NULL AND p.draw != ''
-  AND TRY_CAST(p.draw AS INTEGER) BETWEEN 1 AND 20
-GROUP BY p.draw
-ORDER BY TRY_CAST(p.draw AS INTEGER);`
-  },
-  {
-    group: "🧠 Advanced Analytics",
-    name: "Weight/Handicap Impact",
-    icon: "⚖️",
-    sql: `-- Do lighter-weighted horses win more often?
-WITH w AS (
-  SELECT p.race_id, p.horse_name,
-         TRY_CAST(REPLACE(p.weight_handicap, ',', '.') AS DOUBLE) AS weight
-  FROM partants p
-  WHERE TRY_CAST(REPLACE(p.weight_handicap, ',', '.') AS DOUBLE) IS NOT NULL
-    AND TRY_CAST(REPLACE(p.weight_handicap, ',', '.') AS DOUBLE) BETWEEN 45 AND 80
-)
-SELECT CASE
-         WHEN weight < 55 THEN '< 55 kg'
-         WHEN weight < 60 THEN '55-59 kg'
-         WHEN weight < 65 THEN '60-64 kg'
-         WHEN weight < 70 THEN '65-69 kg'
-         ELSE '70+ kg'
-       END AS weight_band,
-       COUNT(*) AS starters,
-       SUM(CASE WHEN a.position = '1' THEN 1 ELSE 0 END) AS wins,
-       ROUND(SUM(CASE WHEN a.position = '1' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS win_pct
-FROM w
-JOIN arrivee a ON a.race_id = w.race_id AND a.horse_name = w.horse_name
-GROUP BY weight_band
-ORDER BY weight_band;`
-  },
-  {
-    group: "🧠 Advanced Analytics",
+
     name: "Full Race Reconstruction",
+
     icon: "🔬",
-    sql: `-- Reconstruct a single race: starters, odds, results & payouts
+
+    sql: `-- Reconstruct a complete Vincennes race: metadata + full result order
+
 WITH sample AS (
+
   SELECT race_id FROM races
-  WHERE hippodrome LIKE '%VINCENNES%' AND num_starters != '' AND num_starters != '0'
+
+  WHERE hippodrome = 'VINCENNES'
+
+    AND num_starters IS NOT NULL AND num_starters != '0'
+
   ORDER BY race_date DESC LIMIT 1
+
 )
-SELECT 'RACE INFO' AS section, r.race_date::VARCHAR AS col1, r.hippodrome AS col2,
-       r.race_name AS col3, r.race_type AS col4, r.distance AS col5
-FROM races r WHERE r.race_id = (SELECT race_id FROM sample)
-UNION ALL
-SELECT '---RESULTS---', 'Pos', 'Horse', 'Jockey', 'Time', 'Gap'
-UNION ALL
-SELECT '', a.position, a.horse_name, a.jockey, a.time_total, a.distance_length
-FROM arrivee a WHERE a.race_id = (SELECT race_id FROM sample)
-ORDER BY section DESC, col1;`
+
+SELECT a.position, a.horse_name, a.jockey,
+
+       a.sex_age, a.distance_length AS time_gap,
+
+       r.distance, r.race_type, r.race_name, r.race_date
+
+FROM arrivee a
+
+JOIN races r ON r.race_id = a.race_id
+
+WHERE a.race_id = (SELECT race_id FROM sample)
+
+ORDER BY
+
+  CASE a.position
+
+    WHEN '1er' THEN 1 WHEN '2e' THEN 2 WHEN '3e' THEN 3
+
+    WHEN '4e'  THEN 4 WHEN '5e' THEN 5 WHEN '6e' THEN 6
+
+    WHEN '7e'  THEN 7 WHEN '8e' THEN 8 ELSE 99
+
+  END;`
+
   },
+
+  {
+
+    group: "🧠 Advanced Analytics",
+
+    name: "Races with Official Result + Payouts",
+
+    icon: "📜",
+
+    sql: `-- Link race results with actual payouts for top bet types
+
+SELECT r.race_date, r.hippodrome, r.race_name,
+
+       r.official_result,
+
+       c.bet_type, c.combination, c.payout
+
+FROM races r
+
+JOIN cotes c ON c.race_id = r.race_id
+
+WHERE r.official_result IS NOT NULL AND r.official_result != ''
+
+  AND c.bet_type IN ('TRIORDRE','TRIO','ZE COUILLON')
+
+ORDER BY r.race_date DESC, r.hippodrome, c.bet_type
+
+LIMIT 30;`
+
+  },
+
+  {
+
+    group: "🧠 Advanced Analytics",
+
+    name: "Jockey Head-to-Head (Same Race)",
+
+    icon: "⚔️",
+
+    sql: `-- How often do top jockeys appear in same races, and who finishes better?
+
+WITH top_j AS (
+
+  SELECT jockey FROM arrivee WHERE position = '1er'
+
+  GROUP BY jockey ORDER BY COUNT(*) DESC LIMIT 5
+
+)
+
+SELECT a.race_date, a.hippodrome,
+
+       a.jockey,
+
+       a.position,
+
+       a.horse_name
+
+FROM arrivee a
+
+WHERE a.jockey IN (SELECT jockey FROM top_j)
+
+ORDER BY a.race_date DESC, a.race_id, a.jockey
+
+LIMIT 40;`
+
+  },
+
+  {
+
+    group: "🧠 Advanced Analytics",
+
+    name: "Handicap Weight Distribution",
+
+    icon: "⚖️",
+
+    sql: `-- Handicap weight distribution for partants
+
+-- weight_handicap here is a harness-racing handicap integer (metres)
+
+SELECT weight_handicap AS handicap_metres,
+
+       COUNT(*) AS starters,
+
+       SUM(CASE WHEN a.position = '1er' THEN 1 ELSE 0 END) AS winners,
+
+       ROUND(SUM(CASE WHEN a.position = '1er' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS win_pct
+
+FROM partants p
+
+LEFT JOIN arrivee a ON a.race_id = p.race_id AND a.horse_name = p.horse_name
+
+WHERE p.weight_handicap IS NOT NULL AND p.weight_handicap != ''
+
+  AND TRY_CAST(p.weight_handicap AS INTEGER) BETWEEN 0 AND 50
+
+GROUP BY handicap_metres
+
+ORDER BY TRY_CAST(handicap_metres AS INTEGER);`
+
+  },
+
+  {
+
+    group: "🧠 Advanced Analytics",
+
+    name: "Payout Rarity Index by Venue",
+
+    icon: "🎯",
+
+    sql: `-- At which hippodromes do punters get the biggest surprises?
+
+-- (average TRIORDRE payout per hippodrome = measure of unpredictability)
+
+SELECT c.hippodrome,
+
+       COUNT(*) AS triordre_races,
+
+       ROUND(AVG(TRY_CAST(REPLACE(REPLACE(c.payout,' ',''),',','.') AS DOUBLE)), 1) AS avg_triordre_payout,
+
+       ROUND(MAX(TRY_CAST(REPLACE(REPLACE(c.payout,' ',''),',','.') AS DOUBLE)), 1) AS max_triordre_payout
+
+FROM cotes c
+
+WHERE c.bet_type = 'TRIORDRE'
+
+  AND c.payout IS NOT NULL AND c.payout != ''
+
+GROUP BY c.hippodrome
+
+HAVING COUNT(*) >= 10
+
+ORDER BY avg_triordre_payout DESC
+
+LIMIT 20;`
+
+  },
+
 ];
 
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// APP STATE
-// ═══════════════════════════════════════════════════════════════════════════════
 let db = null;
+
 let conn = null;
+
 let lastResult = null;
+
 let currentTab = 'table';
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // INIT
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 async function init() {
+
   try {
-    setLoading("Loading DuckDB WebAssembly engine…");
+
+    setLoading("Loading DuckDB WebAssembly engine...");
 
     // Wait for the ESM module to expose itself on window._duckdb
+
     const duckdb = await new Promise((resolve, reject) => {
+
       if (window._duckdb) { resolve(window._duckdb); return; }
+
       const timeout = setTimeout(() => reject(new Error('DuckDB ESM module timed out after 15s')), 15000);
+
       window.addEventListener('duckdb-ready', () => {
+
         clearTimeout(timeout);
+
         resolve(window._duckdb);
+
       }, { once: true });
+
     });
 
     // Use the jsdelivr CDN bundles for worker + wasm
+
     const CDN = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/';
+
     const BUNDLES = {
+
       mvp: {
+
         mainModule: CDN + 'duckdb-mvp.wasm',
+
         mainWorker: CDN + 'duckdb-browser-mvp.worker.js',
+
       },
+
       eh: {
+
         mainModule: CDN + 'duckdb-eh.wasm',
+
         mainWorker: CDN + 'duckdb-browser-eh.worker.js',
+
       },
+
     };
 
     const bundle = await duckdb.selectBundle(BUNDLES);
+
     const workerUrl = URL.createObjectURL(
+
       new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+
     );
+
     const worker = new Worker(workerUrl);
+
     const logger = new duckdb.ConsoleLogger();
+
     db = new duckdb.AsyncDuckDB(logger, worker);
+
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+
     URL.revokeObjectURL(workerUrl);
 
     conn = await db.connect();
+
     // Enable httpfs for remote parquet loading
+
     await conn.query("INSTALL httpfs; LOAD httpfs;");
 
     // Determine base URL for parquet files
+
     const baseURL = getDataBaseURL();
 
     // Load Parquet files into tables
+
     const tables = [
+
       { name: 'races',    file: 'races.parquet' },
+
       { name: 'arrivee',  file: 'arrivee.parquet' },
+
       { name: 'cotes',    file: 'cotes.parquet' },
+
       { name: 'partants', file: 'partants.parquet' },
+
     ];
 
     for (const t of tables) {
-      setLoading(`Loading ${t.name} from data store…`);
+
+      setLoading(`Loading ${t.name} from data store...`);
+
       const url = `${baseURL}${t.file}`;
+
       await conn.query(`CREATE TABLE ${t.name} AS SELECT * FROM read_parquet('${url}')`);
+
     }
 
     setLoading("Ready! 🎉");
+
     setTimeout(() => {
+
       document.getElementById('loadingOverlay').classList.add('hidden');
+
     }, 600);
 
     // Enable buttons
+
     document.getElementById('btnRun').disabled = false;
+
     setStatus('success', '✅ Ready', 'DuckDB loaded with 32,110 races. Pick a query or write your own!');
 
     // Build sidebar
+
     buildQueryList();
 
     // Keyboard shortcut
+
     document.getElementById('sql-editor').addEventListener('keydown', e => {
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+
         e.preventDefault();
+
         runQuery();
+
       }
+
     });
 
   } catch (err) {
+
     setLoading("❌ " + err.message);
+
     setStatus('error', '❌ Error', err.message);
+
     document.getElementById('loadingOverlay').querySelector('h2').textContent = '⚠️ Failed to Load';
+
     console.error(err);
+
   }
+
 }
 
 function getDataBaseURL() {
+
   // GitHub Pages: files are in /data/ relative to the repo root
+
   if (location.hostname.includes('github.io')) {
+
     const base = location.href.replace(/\/playground\.html.*$/, '');
+
     return base + '/data/';
+
   }
+
   // Local / fallback: use raw GitHub URL
+
   return 'https://raw.githubusercontent.com/poornimaramakrishnan/zeturf-scraper-docker/main/data/';
+
 }
 
 function setLoading(text) {
+
   const el = document.getElementById('loadingText');
+
   if (el) el.textContent = text;
+
 }
 
 function setStatus(type, badge, text) {
+
   const b = document.getElementById('statusBadge');
+
   const t = document.getElementById('statusText');
+
   b.className = 'badge ' + type;
+
   b.textContent = badge;
+
   t.textContent = text;
+
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // QUERY EXECUTION
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 async function runQuery() {
+
   const sql = document.getElementById('sql-editor').value.trim();
+
   if (!sql) return;
+
   if (!conn) { setStatus('error', '❌ Error', 'DuckDB not initialized yet'); return; }
 
   const btn = document.getElementById('btnRun');
+
   btn.disabled = true;
+
   btn.textContent = '⏳ Running…';
+
   setStatus('loading', '⏳ Running…', 'Executing query…');
+
   const t0 = performance.now();
 
   try {
+
     const result = await conn.query(sql);
+
     const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
     const rows = result.toArray().map(row => {
+
       const obj = {};
+
       for (const field of result.schema.fields) {
+
         let val = row[field.name];
+
         // Convert BigInt to number for display
+
         if (typeof val === 'bigint') val = Number(val);
+
         obj[field.name] = val;
+
       }
+
       return obj;
+
     });
 
     lastResult = { columns: result.schema.fields.map(f => f.name), rows };
+
     document.getElementById('rowCount').textContent = `${rows.length} rows · ${elapsed}s`;
+
     document.getElementById('btnExport').disabled = false;
 
     if (currentTab === 'table') renderTable(lastResult);
+
     else renderJSON(lastResult);
 
     setStatus('success', '✅ Success', `${rows.length} rows in ${elapsed}s`);
 
   } catch (err) {
+
     lastResult = null;
+
     document.getElementById('resultsContent').innerHTML =
+
       `<div class="results-message error"><span class="emoji">⚠️</span>${escapeHtml(err.message)}</div>`;
+
     setStatus('error', '❌ Error', err.message.substring(0, 120));
+
     document.getElementById('btnExport').disabled = true;
+
   } finally {
+
     btn.disabled = false;
+
     btn.textContent = '▶ Run Query';
+
   }
+
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // RENDERING
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function renderTable(data) {
+
   if (!data || !data.rows.length) {
+
     document.getElementById('resultsContent').innerHTML =
+
       '<div class="results-message"><span class="emoji">📭</span>No results returned.</div>';
+
     return;
+
   }
+
   let html = '<div class="results-table-wrap"><table class="results-table"><thead><tr>';
+
   for (const col of data.columns) html += `<th>${escapeHtml(col)}</th>`;
+
   html += '</tr></thead><tbody>';
+
   for (const row of data.rows.slice(0, 2000)) {
+
     html += '<tr>';
+
     for (const col of data.columns) {
+
       const v = row[col];
+
       html += `<td>${v === null || v === undefined ? '<span style="color:#ccc">NULL</span>' : escapeHtml(String(v))}</td>`;
+
     }
+
     html += '</tr>';
+
   }
+
   html += '</tbody></table></div>';
+
   if (data.rows.length > 2000) {
+
     html += `<div style="padding:0.5rem 1rem;font-size:0.75rem;color:var(--text-muted)">Showing 2,000 of ${data.rows.length.toLocaleString()} rows</div>`;
+
   }
+
   document.getElementById('resultsContent').innerHTML = html;
+
 }
 
 function renderJSON(data) {
+
   if (!data) return;
+
   const json = JSON.stringify(data.rows.slice(0, 200), null, 2);
+
   document.getElementById('resultsContent').innerHTML =
+
     `<pre style="padding:1rem;font-size:0.8rem;overflow:auto;max-height:500px;background:#1e1e2e;color:#cdd6f4;margin:0">${escapeHtml(json)}</pre>`;
+
 }
 
 function switchTab(tab) {
+
   currentTab = tab;
+
   document.getElementById('tabTable').className = tab === 'table' ? 'tab active' : 'tab';
+
   document.getElementById('tabRaw').className = tab === 'raw' ? 'tab active' : 'tab';
+
   if (lastResult) {
+
     if (tab === 'table') renderTable(lastResult);
+
     else renderJSON(lastResult);
+
   }
+
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // SIDEBAR
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function buildQueryList() {
+
   const container = document.getElementById('queryList');
+
   let html = '';
+
   let currentGroup = '';
+
   QUERIES.forEach((q, i) => {
+
     if (q.group !== currentGroup) {
+
       currentGroup = q.group;
+
       html += `<div class="query-group-title">${escapeHtml(currentGroup)}</div>`;
+
     }
+
     html += `<div class="query-item" data-idx="${i}" onclick="selectQuery(${i})">
+
       <span class="icon">${q.icon}</span> ${escapeHtml(q.name)}
+
     </div>`;
+
   });
+
   container.innerHTML = html;
 
   // Search filter
+
   document.getElementById('querySearch').addEventListener('input', e => {
+
     const term = e.target.value.toLowerCase();
+
     container.querySelectorAll('.query-item').forEach(el => {
+
       const idx = parseInt(el.dataset.idx);
+
       const q = QUERIES[idx];
+
       const match = q.name.toLowerCase().includes(term) || q.sql.toLowerCase().includes(term);
+
       el.style.display = match ? '' : 'none';
+
     });
+
     container.querySelectorAll('.query-group-title').forEach(el => {
+
       const next = el.nextElementSibling;
+
       // Show group title if any child is visible
+
       let anyVisible = false;
+
       let sibling = next;
+
       while (sibling && !sibling.classList.contains('query-group-title')) {
+
         if (sibling.style.display !== 'none') anyVisible = true;
+
         sibling = sibling.nextElementSibling;
+
       }
+
       el.style.display = anyVisible ? '' : 'none';
+
     });
+
   });
+
 }
 
 function selectQuery(idx) {
+
   const q = QUERIES[idx];
+
   document.getElementById('sql-editor').value = q.sql;
 
   // Highlight active
+
   document.querySelectorAll('.query-item').forEach(el => el.classList.remove('active'));
+
   document.querySelector(`.query-item[data-idx="${idx}"]`).classList.add('active');
 
   // Auto-run
+
   runQuery();
+
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // UTILITIES
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 function clearEditor() {
+
   document.getElementById('sql-editor').value = '';
+
   document.querySelectorAll('.query-item').forEach(el => el.classList.remove('active'));
+
 }
 
 function exportCSV() {
+
   if (!lastResult || !lastResult.rows.length) return;
+
   const cols = lastResult.columns;
+
   let csv = cols.join(',') + '\n';
+
   for (const row of lastResult.rows) {
+
     csv += cols.map(c => {
+
       const v = row[c];
+
       if (v === null || v === undefined) return '';
+
       const s = String(v);
+
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+
     }).join(',') + '\n';
+
   }
+
   const blob = new Blob([csv], { type: 'text/csv' });
+
   const a = document.createElement('a');
+
   a.href = URL.createObjectURL(blob);
+
   a.download = 'zeturf_query_results.csv';
+
   a.click();
+
 }
 
 function toggleSchema() {
+
   document.getElementById('schemaDrawer').classList.toggle('open');
+
 }
 
 function escapeHtml(str) {
+
   const div = document.createElement('div');
+
   div.textContent = str;
+
   return div.innerHTML;
+
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // START
-// ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
 init();
+
 </script>
 
 </body>
+
 </html>
